@@ -17,7 +17,7 @@ services:
     restart: unless-stopped
 
   pgadmin:
-    image: dpage/pgadmin4
+    image: dpage/pgadmin4:8.5
     container_name: pgadmin
     environment:
       PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL:-admin@gmail.com}
@@ -33,11 +33,36 @@ services:
     depends_on:
       - postgres
 
+  redis:
+    container_name: redis
+    image: redis:alpine
+    ports:
+      - "6379:6379"
+    networks:
+      - cluster-network
+    volumes:
+      - redis:/data
+    restart: always
+
+  redisinsight:
+    container_name: redisinsight
+    image: redislabs/redisinsight:latest
+    ports:
+      - '8001:8001'
+    volumes:
+      - redisinsight:/db
+    networks:
+      - cluster-network
 
 networks:
   postgres:
     driver: bridge
 
+  cluster-network:
+    driver: bridge
+
 volumes:
   postgres:
   pgadmin:
+  redis:
+  redisinsight:
