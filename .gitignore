@@ -31,3 +31,12 @@ build/
 
 ### VS Code ###
 .vscode/
+
+### Custom ###
+LogFile.log
+LogFile
+src/main/resources/application-dev.yml
+src/main/resources/application-test.yml
+note.txt
+totp/**
+LogFile
