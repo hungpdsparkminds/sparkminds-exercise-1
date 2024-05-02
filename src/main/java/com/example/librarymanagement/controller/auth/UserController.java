@@ -53,6 +53,7 @@ public class UserController {
 
     @PatchMapping("/change-phone")
     public ResponseEntity<Void> updatePhone(@RequestParam @Valid
+                                                @Pattern(regexp = "^[+](?:[\\d\\-\\(\\)\\/\\.]\\s?){6,15}[\\d]$")
                                             String phone) {
         userService.updatePhone(phone);
         return ResponseEntity.noContent().build();

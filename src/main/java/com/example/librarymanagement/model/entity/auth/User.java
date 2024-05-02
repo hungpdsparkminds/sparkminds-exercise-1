@@ -65,7 +65,7 @@ public class User extends AbstractAuditEntity implements UserDetails {
     private String totpQr;
 
     @Column
-    @Pattern(regexp = "^[+]{1}(?:[0-9\\-\\(\\)\\/\\.]\\s?){6,15}[0-9]{1}$")
+    @Pattern(regexp = "^[+](?:[\\d\\-\\(\\)\\/\\.]\\s?){6,15}[\\d]$")
     private String phone;
 
     @ManyToOne(cascade = {CascadeType.MERGE, CascadeType.PERSIST})

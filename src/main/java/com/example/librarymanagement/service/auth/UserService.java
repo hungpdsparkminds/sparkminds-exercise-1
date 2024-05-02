@@ -3,9 +3,6 @@ package com.example.librarymanagement.service.auth;
 import com.example.librarymanagement.model.dto.request.auth.ChangeEmailRequest;
 import com.example.librarymanagement.model.dto.request.auth.ChangePasswordRequest;
 import com.example.librarymanagement.model.entity.auth.User;
-import com.google.zxing.WriterException;
-
-import java.io.IOException;
 
 public interface UserService {
     void updateUser2FA(boolean use2FA);

@@ -6,8 +6,6 @@ import com.twilio.type.PhoneNumber;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
-import java.security.SecureRandom;
-
 @Service
 public class SmsServiceImpl implements SmsService {
     @Value("${twilio.account_sid}")

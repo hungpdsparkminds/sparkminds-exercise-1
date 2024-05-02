@@ -5,7 +5,6 @@ import com.example.librarymanagement.model.dto.request.auth.LoginRequest;
 import com.example.librarymanagement.model.dto.request.auth.RegisterRequest;
 import com.example.librarymanagement.model.dto.request.auth.ResetPasswordRequest;
 import com.example.librarymanagement.model.dto.response.auth.AuthenticationResponse;
-import jakarta.mail.MessagingException;
 
 public interface AuthenticationService {
     AuthenticationResponse login(LoginRequest loginRequest);

@@ -1,6 +1,5 @@
 package com.example.librarymanagement.model.dto.request.auth;
 
-import com.example.librarymanagement.validation.ValidEmail;
 import com.example.librarymanagement.validation.ValidPassword;
 import jakarta.validation.constraints.Email;
 import lombok.AllArgsConstructor;

@@ -1,7 +1,6 @@
 package com.example.librarymanagement.service;
 
 import com.example.librarymanagement.model.dto.request.EmailRequest;
-import com.example.librarymanagement.service.EmailService;
 import jakarta.mail.MessagingException;
 import jakarta.mail.internet.MimeMessage;
 import lombok.RequiredArgsConstructor;
@@ -25,6 +24,7 @@ public class EmailServiceImpl implements EmailService {
     private String username;
     @Value("${application.base-url}")
     private String baseUrl;
+
     @Override
     public void sendVerificationEmail(String email, String token) throws MessagingException {
         Map<String, Object> attribute = new HashMap<>();

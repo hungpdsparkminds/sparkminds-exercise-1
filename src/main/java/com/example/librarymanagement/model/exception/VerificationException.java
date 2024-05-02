@@ -2,7 +2,7 @@ package com.example.librarymanagement.model.exception;
 
 import com.example.librarymanagement.utils.MessagesUtils;
 
-public class VerificationException extends RuntimeException{
+public class VerificationException extends RuntimeException {
     private String message;
 
     public VerificationException(String errorCode, Object... var2) {
