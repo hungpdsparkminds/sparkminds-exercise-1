@@ -8,6 +8,9 @@ import java.util.MissingResourceException;
 import java.util.ResourceBundle;
 
 public class MessagesUtils {
+    private MessagesUtils() {
+    }
+
     static ResourceBundle messageBundle = ResourceBundle.getBundle("messages.messages", Locale.getDefault());
 
     public static String getMessage(String errorCode, Object... var2) {

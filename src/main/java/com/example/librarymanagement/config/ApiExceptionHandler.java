@@ -1,5 +1,8 @@
 package com.example.librarymanagement.config;
 
+import com.amazonaws.AmazonClientException;
+import com.amazonaws.AmazonServiceException;
+import com.amazonaws.SdkClientException;
 import com.example.librarymanagement.model.exception.*;
 import jakarta.persistence.EntityNotFoundException;
 import jakarta.validation.ConstraintViolationException;
@@ -14,18 +17,21 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.context.request.ServletWebRequest;
 import org.springframework.web.context.request.WebRequest;
 
+import java.util.Map;
+import java.util.stream.Collectors;
+
+import static com.example.librarymanagement.utils.Constants.ERROR_CODE.ERROR_LOG_FORMAT;
+
 @ControllerAdvice
 @Slf4j
 public class ApiExceptionHandler {
-    private static final String ERROR_LOG_FORMAT = "Error: URI: {}, ErrorCode: {}, Message: {}";
-
     //400
     @ExceptionHandler({MethodArgumentNotValidException.class})
     public ResponseEntity<ErrorVm> handleMethodArgumentNotValidException(MethodArgumentNotValidException ex, WebRequest request) {
-        String message = ex.getBindingResult().getAllErrors().stream()
-                .map(DefaultMessageSourceResolvable::getDefaultMessage)
-                .toList()
-                .toString();
+        String message = ex.getFieldErrors()
+                .stream()
+                .map(fieldError -> fieldError.getField() + ": " + fieldError.getDefaultMessage())
+                .collect(Collectors.joining("; "));
         ErrorVm errorVm = new ErrorVm(HttpStatus.BAD_REQUEST.toString(), "Validation exception", message);
         log.warn(ERROR_LOG_FORMAT, this.getServletPath(request), HttpStatus.BAD_REQUEST, message);
         log.debug(ex.toString());
@@ -42,7 +48,8 @@ public class ApiExceptionHandler {
     }
 
     //401
-    @ExceptionHandler({BadCredentialsException.class})
+    @ExceptionHandler({BadCredentialsException.class,
+            VerificationException.class})
     public <T extends RuntimeException> ResponseEntity<ErrorVm> jwtExceptionHandler(T ex, WebRequest request) {
         String message = ex.getMessage();
         ErrorVm errorVm = new ErrorVm(HttpStatus.UNAUTHORIZED.toString(), "Authentication exception", message);
@@ -93,6 +100,20 @@ public class ApiExceptionHandler {
         String message = ex.getMessage();
         ErrorVm errorVm = new ErrorVm(HttpStatus.INTERNAL_SERVER_ERROR.toString(), "Internal server error", message);
         log.warn(ERROR_LOG_FORMAT, this.getServletPath(request), HttpStatus.INTERNAL_SERVER_ERROR, message);
+        log.debug(ex.toString());
+        return ResponseEntity.badRequest().body(errorVm);
+    }
+
+    //503
+    @ExceptionHandler({
+            AmazonServiceException.class,
+            SdkClientException.class,
+            AmazonClientException.class,
+    })
+    public ResponseEntity<ErrorVm> awsExceptionHandler(Exception ex, WebRequest request) {
+        String message = ex.getMessage();
+        ErrorVm errorVm = new ErrorVm(HttpStatus.SERVICE_UNAVAILABLE.toString(), "AWS Exception.", message);
+        log.warn(ERROR_LOG_FORMAT, this.getServletPath(request), HttpStatus.SERVICE_UNAVAILABLE, message);
         log.debug(ex.toString());
         return ResponseEntity.badRequest().body(errorVm);
     }

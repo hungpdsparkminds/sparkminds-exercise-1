@@ -1,19 +1,24 @@
 package com.example.librarymanagement.service.auth.impl;
 
 import com.example.librarymanagement.config.security.JwtService;
+import com.example.librarymanagement.model.dto.request.auth.ForgotPasswordRequest;
 import com.example.librarymanagement.model.dto.request.auth.LoginRequest;
+import com.example.librarymanagement.model.dto.request.auth.RegisterRequest;
+import com.example.librarymanagement.model.dto.request.auth.ResetPasswordRequest;
 import com.example.librarymanagement.model.dto.response.auth.AuthenticationResponse;
-import com.example.librarymanagement.model.entity.auth.User;
-import com.example.librarymanagement.model.entity.auth.UserSession;
-import com.example.librarymanagement.model.entity.auth.UserSessionStatus;
-import com.example.librarymanagement.model.entity.auth.UserStatus;
+import com.example.librarymanagement.model.entity.auth.*;
 import com.example.librarymanagement.model.exception.AccessDeniedException;
+import com.example.librarymanagement.model.exception.DataIntegrityViolationException;
 import com.example.librarymanagement.model.exception.NotFoundException;
+import com.example.librarymanagement.model.exception.VerificationException;
 import com.example.librarymanagement.repository.auth.RoleRepository;
 import com.example.librarymanagement.repository.auth.TokenRepository;
 import com.example.librarymanagement.repository.auth.UserRepository;
 import com.example.librarymanagement.repository.auth.UserSessionRepository;
+import com.example.librarymanagement.service.EmailService;
 import com.example.librarymanagement.service.auth.AuthenticationService;
+import com.github.javafaker.Faker;
+import jakarta.mail.MessagingException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.jboss.aerogear.security.otp.Totp;
@@ -25,10 +30,13 @@ import org.springframework.security.authentication.UsernamePasswordAuthenticatio
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.thymeleaf.util.StringUtils;
 import redis.clients.jedis.JedisPooled;
 
 import java.time.Duration;
 import java.time.OffsetDateTime;
+import java.util.HashMap;
+import java.util.concurrent.CompletableFuture;
 
 import static com.example.librarymanagement.utils.Constants.ERROR_CODE.*;
 
@@ -38,10 +46,11 @@ import static com.example.librarymanagement.utils.Constants.ERROR_CODE.*;
 public class AuthenticationServiceImpl implements AuthenticationService {
     private static final int MAX_LOGIN_ATTEMPTS = 3;
     private static final String LOGIN_FAILURE_PREFIX = "LOGIN_FAILURE-";
+    private static final String USER_ROLE_NAME = "User";
     private final UserRepository userRepository;
     private final TokenRepository tokenRepository;
     private final RoleRepository roleRepository;
-    //    private final EmailService emailService;
+    private final EmailService emailService;
     private final JwtService jwtService;
     private final PasswordEncoder passwordEncoder;
     private final JedisPooled redisPool;
@@ -59,35 +68,154 @@ public class AuthenticationServiceImpl implements AuthenticationService {
 
     @Override
     @Transactional
+    public void register(RegisterRequest registerRequest) {
+        var role = roleRepository.findByNameEquals(USER_ROLE_NAME)
+                .orElseThrow(() -> new NotFoundException(ROLE_NOT_FOUND));
+        userRepository.getUserByEmailEquals(registerRequest.getEmail())
+                .ifPresent(user -> {
+                    throw new DataIntegrityViolationException(EMAIL_EXISTED);
+                });
+        var user = userRepository.save(User.builder()
+                .email(registerRequest.getEmail())
+                .role(role)
+                .passwordHash(passwordEncoder.encode(registerRequest.getPassword()))
+                .status(UserStatus.PENDING)
+                .build());
+        var token = tokenRepository.save(Token
+                .builder()
+                .user(user)
+                .tokenType(TokenType.EMAIL_VERIFICATION)
+                .expirationTime(OffsetDateTime.now().plusSeconds(jwtExpiration / 1000))
+                .status(TokenStatus.VALID)
+                .value(jwtService.generateToken(new HashMap<>(), user))
+                .build());
+        CompletableFuture.runAsync(() -> {
+            try {
+                emailService.sendVerificationEmail(user.getEmail(), token.getValue());
+            } catch (MessagingException e) {
+                log.error("Error in Email Service: Messages:{}", e.getMessage());
+            }
+        });
+    }
+
+    @Transactional
     public AuthenticationResponse login(LoginRequest loginRequest) {
-        int loginAttempts = getLoginAttempts(loginRequest.getEmail());
-        if (loginAttempts >= MAX_LOGIN_ATTEMPTS) {
+        if (hasTooManyLoginAttempts(loginRequest.getEmail())) {
             throw new AccessDeniedException(USER_BLOCKED);
         }
-        try {
-            authenticationManager.authenticate(
-                    new UsernamePasswordAuthenticationToken(
-                            loginRequest.getEmail(),
-                            loginRequest.getPassword()
-                    )
-            );
-        } catch (Exception ex) {
-            incrementLoginAttempts(loginRequest.getEmail(), loginAttempts + 1);
-            throw new NotFoundException(EMAIL_AND_PASSWORD_INCORRECT);
-        }
-        var user = userRepository.getUserByEmailEquals(loginRequest.getEmail())
-                .orElseThrow(() -> new NotFoundException(USER_WITH_EMAIL_NOT_FOUND));
+        authenticate(loginRequest.getEmail(), loginRequest.getPassword());
+        var user = findUserByEmail(loginRequest.getEmail());
         if (user.getStatus().equals(UserStatus.PENDING)) {
             throw new AccessDeniedException(USER_NOT_VERIFIED);
         }
+        if (user.getStatus().equals(UserStatus.NEED_CHANGE_PASSWORD)) {
+            throw new AccessDeniedException(NEED_CHANGE_PASSWORD);
+        }
         if (user.isUsing2FA()) {
-            validate2FA(user, loginRequest.getVerificationCode(), loginAttempts + 1);
+            validate2FA(user, loginRequest.getVerificationCode());
         }
         resetLoginAttempts(loginRequest.getEmail());
-        return getAuthenticationResponse(user);
+        return generateAuthenticationResponse(user);
     }
 
-    public AuthenticationResponse getAuthenticationResponse(User user) {
+
+    @Transactional
+    public void forgotPassword(ForgotPasswordRequest forgotPasswordRequest) {
+        var user = findUserByEmail(forgotPasswordRequest.getEmail());
+        var newPassword = generateRandomPassword();
+        setUserPassword(user, newPassword);
+        user.setStatus(UserStatus.NEED_CHANGE_PASSWORD);
+        userRepository.save(user);
+        CompletableFuture.runAsync(() -> {
+            try {
+                emailService.sendForgotPassword(user.getEmail(), newPassword);
+            } catch (MessagingException e) {
+                log.error("Error in Email Service: Messages:{}", e.getMessage());
+            }
+        });
+    }
+
+    @Transactional
+    public void resetPassword(ResetPasswordRequest resetPasswordRequest) {
+        if (hasTooManyLoginAttempts(resetPasswordRequest.getEmail())) {
+            throw new AccessDeniedException(USER_BLOCKED);
+        }
+        authenticate(resetPasswordRequest.getEmail(),
+                resetPasswordRequest.getOldPassword());
+        var user = findUserByEmail(resetPasswordRequest.getEmail());
+        if (user.getStatus().equals(UserStatus.PENDING)) {
+            throw new AccessDeniedException(USER_NOT_VERIFIED);
+        }
+        setUserPassword(user, resetPasswordRequest.getNewPassword());
+        userRepository.save(user);
+        resetLoginAttempts(resetPasswordRequest.getEmail());
+    }
+
+    @Transactional
+    public void verifyEmailToken(String token) {
+        var user = getUserFromToken(token);
+        tokenRepository.findByValueEqualsAndTokenTypeEqualsAndStatusEqualsAndUserEqualsAndExpirationTimeIsAfter(
+                        token, TokenType.EMAIL_VERIFICATION, TokenStatus.VALID, user, OffsetDateTime.now())
+                .ifPresentOrElse(
+                        element -> {
+                            element.setStatus(TokenStatus.REVOKED);
+                            tokenRepository.save(element);
+                        },
+                        () -> {
+                            throw new NotFoundException(TOKEN_NOT_FOUND);
+                        });
+        if (user.getStatus().equals(UserStatus.PENDING)) {
+            user.setStatus(UserStatus.ACTIVE);
+        }
+        markEmailVerified(user);
+    }
+
+    private boolean hasTooManyLoginAttempts(String email) {
+        return getLoginAttempts(email) >= MAX_LOGIN_ATTEMPTS;
+    }
+
+    private int getLoginAttempts(String email) {
+        var attempts = redisPool.get(LOGIN_FAILURE_PREFIX + email);
+        return attempts == null ? 0 : Integer.parseInt(attempts);
+    }
+
+    private void resetLoginAttempts(String email) {
+        redisPool.del(LOGIN_FAILURE_PREFIX + email);
+    }
+
+    private void authenticate(String email, String password) {
+        try {
+            authenticationManager.authenticate(
+                    new UsernamePasswordAuthenticationToken(email, password)
+            );
+        } catch (Exception ex) {
+            incrementLoginAttempts(email);
+            throw new NotFoundException(EMAIL_WITH_PASSWORD_INCORRECT);
+        }
+    }
+
+    private void incrementLoginAttempts(String email) {
+        var currentAttempts = getLoginAttempts(email);
+        redisPool.setex(LOGIN_FAILURE_PREFIX + email,
+                blockExpirationInMinutes,
+                String.valueOf(currentAttempts + 1));
+    }
+
+    private User findUserByEmail(String email) {
+        return userRepository.getUserByEmailEquals(email)
+                .orElseThrow(() -> new NotFoundException(USER_WITH_EMAIL_NOT_FOUND));
+    }
+
+    private void setUserPassword(User user, String newPassword) {
+        user.setPasswordHash(passwordEncoder.encode(newPassword));
+        user.setStatus(UserStatus.ACTIVE);
+    }
+
+    private String generateRandomPassword() {
+        return new Faker().internet().password(20, 30, true, true);
+    }
+
+    private AuthenticationResponse generateAuthenticationResponse(User user) {
         var userSession = userSessionRepository
                 .save(UserSession.builder()
                         .user(user)
@@ -102,35 +230,39 @@ public class AuthenticationServiceImpl implements AuthenticationService {
                 .build();
     }
 
-    private boolean isValidLong(String code) {
+    private void markEmailVerified(User user) {
+        user.setEmailVerified(true);
+        userRepository.save(user);
+    }
+
+    private User getUserFromToken(String token) {
+        var userId = jwtService.extractUserId(token);
+        if (StringUtils.isEmpty(userId)) {
+            throw new VerificationException(VERIFICATION_TOKEN_INVALID);
+        }
+        var user = userRepository.findById(Long.valueOf(userId))
+                .orElseThrow(() -> new NotFoundException(USER_NOT_FOUND));
+        if (!jwtService.isTokenValid(token, user)) {
+            throw new VerificationException(VERIFICATION_TOKEN_INVALID);
+        }
+        return user;
+    }
+
+    private void validate2FA(User user, String verificationCode) {
+        var totp = new Totp(user.getSecret());
+        if (!isValidLong(verificationCode) || !totp.verify(verificationCode)) {
+            incrementLoginAttempts(user.getEmail());
+            throw new BadCredentialsException("Invalid Authenticator verification code");
+        }
+    }
+
+    private boolean isValidLong(String value) {
         try {
-            Long.parseLong(code);
-        } catch (final NumberFormatException e) {
+            Long.parseLong(value);
+        } catch (NumberFormatException e) {
             return false;
         }
         return true;
     }
 
-    private void validate2FA(User user, String verificationCode, int attempts) {
-        Totp totp = new Totp(user.getSecret());
-        if (!isValidLong(verificationCode) || !totp.verify(verificationCode)) {
-            incrementLoginAttempts(user.getEmail(), attempts);
-            throw new BadCredentialsException("Invalid Authenticator verification code");
-        }
-    }
-
-    private void resetLoginAttempts(String email) {
-        redisPool.del(LOGIN_FAILURE_PREFIX + email);
-    }
-
-    private int getLoginAttempts(String email) {
-        String attempts = redisPool.get(LOGIN_FAILURE_PREFIX + email);
-        return attempts == null ? 0 : Integer.parseInt(attempts);
-    }
-
-    private void incrementLoginAttempts(String email, int attempts) {
-        redisPool.setex(LOGIN_FAILURE_PREFIX + email,
-                blockExpirationInMinutes,
-                String.valueOf(attempts));
-    }
 }

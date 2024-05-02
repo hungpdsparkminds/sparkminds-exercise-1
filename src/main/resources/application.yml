@@ -38,6 +38,13 @@ redis:
   port: 6379
   timeout: 1800000
 
+amazon:
+  aws:
+    access-key: ${AWS_ACCESS_KEY}
+    secret-key: ${AWS_ACCESS_SECRET}
+  s3:
+    bucket:
+      name: ${AWS_BUCKET_NAME}
 
 application:
   host: ${HOST:localhost}

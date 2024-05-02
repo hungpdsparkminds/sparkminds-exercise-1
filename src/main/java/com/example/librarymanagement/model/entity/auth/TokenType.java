@@ -7,5 +7,6 @@ public enum TokenType {
     EMAIL_VERIFICATION,
     PHONE_VERIFICATION,
     GOOGLE_AUTHENTICATION,
-    OTP
+    OTP,
+    EMAIL_CHANGE_OTP
 }

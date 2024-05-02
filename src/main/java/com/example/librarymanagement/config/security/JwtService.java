@@ -91,9 +91,9 @@ public class JwtService {
     ) {
         return Jwts
                 .builder()
-//                .setClaims(extraClaims)
-                .setSubject(userDetails.getEmail())
-                .setId(userDetails.getUserId().toString())
+                .setClaims(extraClaims)
+                .setSubject(userDetails.getUserId().toString())
+//                .setId(userDetails.getUserId().toString())
                 .setIssuedAt(new Date(System.currentTimeMillis()))
                 .setExpiration(new Date(System.currentTimeMillis() + expiration))
                 .signWith(getSignInKey(), SignatureAlgorithm.HS256)

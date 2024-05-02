@@ -4,6 +4,8 @@ import com.example.librarymanagement.model.entity.AbstractAuditEntity;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Pattern;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -42,10 +44,10 @@ public class User extends AbstractAuditEntity implements UserDetails {
     @Column(nullable = false, name = "password_hash")
     private String passwordHash;
 
-    @Column(name = "email_verified")
+    @Column(name = "email_verified", columnDefinition = "boolean default false")
     private boolean emailVerified;
 
-    @Column(name = "phone_verified")
+    @Column(name = "phone_verified", columnDefinition = "boolean default false")
     private boolean phoneVerified;
 
     @Enumerated(EnumType.STRING)
@@ -53,10 +55,18 @@ public class User extends AbstractAuditEntity implements UserDetails {
     private UserStatus status;
 
     @Column(name = "is_using_2FA", columnDefinition = "boolean default false")
+    @NotNull
     private boolean isUsing2FA;
 
     @Column(name = "secret")
     private String secret;
+
+    @Column(name = "tot_-qr")
+    private String totpQr;
+
+    @Column
+    @Pattern(regexp = "^[+]{1}(?:[0-9\\-\\(\\)\\/\\.]\\s?){6,15}[0-9]{1}$")
+    private String phone;
 
     @ManyToOne(cascade = {CascadeType.MERGE, CascadeType.PERSIST})
     @JoinColumn(name = "role_id")
@@ -67,6 +77,12 @@ public class User extends AbstractAuditEntity implements UserDetails {
             orphanRemoval = true
     )
     private List<Token> tokens;
+
+    @OneToMany(mappedBy = "user",
+            cascade = {CascadeType.PERSIST, CascadeType.REMOVE},
+            orphanRemoval = true
+    )
+    private List<ChangeEmail> changeEmails;
 
     @OneToMany(mappedBy = "user",
             cascade = {CascadeType.MERGE, CascadeType.REMOVE},
@@ -91,12 +107,12 @@ public class User extends AbstractAuditEntity implements UserDetails {
 
     @Override
     public boolean isAccountNonExpired() {
-        return status.equals(UserStatus.ACTIVE) || status.equals(UserStatus.PENDING);
+        return !status.equals(UserStatus.BLOCKED);
     }
 
     @Override
     public boolean isAccountNonLocked() {
-        return status.equals(UserStatus.ACTIVE) || status.equals(UserStatus.PENDING);
+        return !status.equals(UserStatus.BLOCKED);
     }
 
     @Override

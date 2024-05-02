@@ -31,6 +31,7 @@ public class Token {
     private TokenType tokenType;
 
     @NotBlank(message = "Token value must be specified.")
+    @NotNull
     @Column(nullable = false)
     private String value;
 

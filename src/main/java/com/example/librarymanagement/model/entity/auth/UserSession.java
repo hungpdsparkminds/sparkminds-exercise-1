@@ -1,10 +1,8 @@
 package com.example.librarymanagement.model.entity.auth;
 
 import jakarta.persistence.*;
-import lombok.AllArgsConstructor;
-import lombok.Builder;
-import lombok.Data;
-import lombok.NoArgsConstructor;
+import jakarta.validation.constraints.NotNull;
+import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
 
 import java.time.OffsetDateTime;
@@ -32,6 +30,7 @@ public class UserSession {
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
+    @NotNull
     private UserSessionStatus status;
 
     @ManyToOne(cascade = {CascadeType.MERGE, CascadeType.PERSIST})
