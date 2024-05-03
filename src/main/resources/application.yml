@@ -2,3 +2,60 @@ server:
   port: 8080
   error:
     include-stacktrace: never
+
+spring:
+  datasource:
+    url: jdbc:postgresql://${DATASOURCE_HOST:localhost}:5432/sparkminds-1
+    username: ${DATASOURCE_USERNAME:hungpd170501}
+    password: ${DATASOURCE_PASSWORD:password}
+  jpa:
+    hibernate:
+      ddl-auto: update
+    properties:
+      hibernate:
+        format_sql: true
+        use_nationalized_character_data: true
+    show-sql: true
+    open-in-view: false
+  mail:
+    host: smtp.gmail.com
+    port: 587
+    protocol: smtp
+    username: ${EMAIL_USERNAME}
+    password: ${EMAIL_PASSWORD}
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
+
+mail:
+  debug: true
+
+redis:
+  host: ${REDIS_HOST:localhost}
+  port: 6379
+  timeout: 1800000
+
+amazon:
+  aws:
+    access-key: ${AWS_ACCESS_KEY}
+    secret-key: ${AWS_ACCESS_SECRET}
+  s3:
+    bucket:
+      name: ${AWS_BUCKET_NAME}
+
+application:
+  host: ${HOST:localhost}
+  name: ${APPLICATION_NAME:sparkminds-1}
+  base-url: ${BASE_URL:http://localhost:8080}
+  security:
+    block-expiration: ${BLOCK_EXPIRATION:1800}  #30 minutes
+    jwt:
+      secret-key: ${JWT_SECRET}
+      expiration: ${JWT_EXPIRATION:2592000000} #30 days
+      access-token:
+        expiration: ${JWT_ACCESS_TOKEN_EXPIRATION:1800000} #30 minutes
+      refresh-token:
+        expiration: ${JWT_REFRESH_TOKEN_EXPIRATION:1296000000} #15 days
