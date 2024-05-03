@@ -16,4 +16,8 @@ public interface AuthenticationService {
     void forgotPassword(ForgotPasswordRequest forgotPasswordRequest);
 
     void resetPassword(ResetPasswordRequest resetPasswordRequest);
+
+    void resendVerifyEmailByLink(String email);
+
+    AuthenticationResponse refreshToken(String refreshToken);
 }

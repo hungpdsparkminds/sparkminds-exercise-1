@@ -3,11 +3,14 @@ package com.example.librarymanagement.utils;
 import com.example.librarymanagement.model.dto.response.auth.AuthenticationResponse;
 import com.example.librarymanagement.model.entity.auth.User;
 import com.example.librarymanagement.model.exception.NotFoundException;
+import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.ResponseCookie;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
+
+import java.util.Arrays;
 
 import static com.example.librarymanagement.utils.Constants.ERROR_CODE.USER_NOT_FOUND;
 

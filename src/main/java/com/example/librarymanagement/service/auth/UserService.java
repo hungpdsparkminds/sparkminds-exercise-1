@@ -24,4 +24,6 @@ public interface UserService {
     void updatePhone(String phone);
 
     void verifyPhone(String otp);
+
+    void revokeAllValidEmailVerificationTokens(User user);
 }

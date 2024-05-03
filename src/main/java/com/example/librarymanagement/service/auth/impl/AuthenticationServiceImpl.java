@@ -17,6 +17,7 @@ import com.example.librarymanagement.repository.auth.UserRepository;
 import com.example.librarymanagement.repository.auth.UserSessionRepository;
 import com.example.librarymanagement.service.EmailService;
 import com.example.librarymanagement.service.auth.AuthenticationService;
+import com.example.librarymanagement.service.auth.UserService;
 import com.github.javafaker.Faker;
 import jakarta.mail.MessagingException;
 import lombok.RequiredArgsConstructor;
@@ -36,6 +37,7 @@ import redis.clients.jedis.JedisPooled;
 import java.time.Duration;
 import java.time.OffsetDateTime;
 import java.util.HashMap;
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 
 import static com.example.librarymanagement.utils.Constants.ERROR_CODE.*;
@@ -55,6 +57,7 @@ public class AuthenticationServiceImpl implements AuthenticationService {
     private final PasswordEncoder passwordEncoder;
     private final JedisPooled redisPool;
     private final UserSessionRepository userSessionRepository;
+    private final UserService userService;
     @Lazy
     private final AuthenticationManager authenticationManager;
     @Value("${application.security.jwt.expiration}")
@@ -89,6 +92,10 @@ public class AuthenticationServiceImpl implements AuthenticationService {
                 .status(TokenStatus.VALID)
                 .value(jwtService.generateToken(new HashMap<>(), user))
                 .build());
+        sendVerifyEmail(user, token);
+    }
+
+    private void sendVerifyEmail(User user, Token token) {
         CompletableFuture.runAsync(() -> {
             try {
                 emailService.sendVerificationEmail(user.getEmail(), token.getValue());
@@ -149,6 +156,44 @@ public class AuthenticationServiceImpl implements AuthenticationService {
         setUserPassword(user, resetPasswordRequest.getNewPassword());
         userRepository.save(user);
         resetLoginAttempts(resetPasswordRequest.getEmail());
+    }
+
+    @Override
+    @Transactional
+    public void resendVerifyEmailByLink(String email) {
+        var user = findUserByEmail(email);
+        if (user.isEmailVerified()) {
+            return;
+        }
+        userService.revokeAllValidEmailVerificationTokens(user);
+        var token = tokenRepository.save(Token
+                .builder()
+                .user(user)
+                .tokenType(TokenType.EMAIL_VERIFICATION)
+                .expirationTime(OffsetDateTime.now().plusSeconds(jwtExpiration / 1000))
+                .status(TokenStatus.VALID)
+                .value(jwtService.generateToken(new HashMap<>(), user))
+                .build());
+        sendVerifyEmail(user, token);
+    }
+
+    @Override
+    @Transactional
+    public AuthenticationResponse refreshToken(String refreshToken) {
+        var user = getUserFromToken(refreshToken);
+        if (user.getStatus().equals(UserStatus.PENDING)) {
+            throw new AccessDeniedException(USER_NOT_VERIFIED);
+        }
+        if (user.getStatus().equals(UserStatus.NEED_CHANGE_PASSWORD)) {
+            throw new AccessDeniedException(NEED_CHANGE_PASSWORD);
+        }
+        var sessionId = jwtService.extractUserSession(refreshToken);
+        userSessionRepository.findById(UUID.fromString(sessionId))
+                .ifPresent((element) -> {
+                    element.setStatus(UserSessionStatus.REVOKED);
+                    userSessionRepository.save(element);
+                });
+        return generateAuthenticationResponse(user);
     }
 
     @Transactional

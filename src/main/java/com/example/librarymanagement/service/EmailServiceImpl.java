@@ -50,6 +50,17 @@ public class EmailServiceImpl implements EmailService {
                 .attributes(attribute).build());
     }
 
+    public void sendChangeEmailToken(String email, String token) throws MessagingException {
+        Map<String, Object> attribute = new HashMap<>();
+        attribute.put("token", token);
+        sendMessageHtml(EmailRequest
+                .builder()
+                .to(email)
+                .subject("SparkMinds1 - Change your email")
+                .template("change-email-token")
+                .attributes(attribute).build());
+    }
+
     public void sendMessageHtml(EmailRequest emailRequest) throws MessagingException {
         Context thymeleafContext = new Context();
         thymeleafContext.setVariables(emailRequest.getAttributes());

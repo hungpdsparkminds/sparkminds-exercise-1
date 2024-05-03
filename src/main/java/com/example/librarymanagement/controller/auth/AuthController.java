@@ -8,6 +8,8 @@ import com.example.librarymanagement.model.dto.response.auth.AuthenticationRespo
 import com.example.librarymanagement.service.auth.AuthenticationService;
 import com.example.librarymanagement.utils.AuthUtils;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Email;
+import jakarta.validation.constraints.NotEmpty;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpHeaders;
@@ -38,6 +40,16 @@ public class AuthController {
         return ResponseEntity.noContent().build();
     }
 
+    @PostMapping("/refresh-token")
+    public ResponseEntity<AuthenticationResponse> refreshToken(@CookieValue(name = "refreshToken", defaultValue = "")
+                                                                   String refreshToken) {
+        AuthenticationResponse response = authenticationService.refreshToken(refreshToken);
+        return ResponseEntity.ok()
+                .header(HttpHeaders.SET_COOKIE,
+                        authUtils.generateSessionResponseCookies(response))
+                .body(response);
+    }
+
     @PostMapping("/forgot-password")
     public ResponseEntity<Void> forgotPassword(@RequestBody ForgotPasswordRequest forgotPasswordRequest) {
         authenticationService.forgotPassword(forgotPasswordRequest);
@@ -55,4 +67,11 @@ public class AuthController {
         authenticationService.verifyEmailToken(token);
         return ResponseEntity.noContent().build();
     }
+
+    @PostMapping("/resend-verification-email")
+    public ResponseEntity<Void> resendVerificationEmailByLink(@RequestParam @Email @Valid String email) {
+        authenticationService.resendVerifyEmailByLink(email);
+        return ResponseEntity.noContent().build();
+    }
+
 }

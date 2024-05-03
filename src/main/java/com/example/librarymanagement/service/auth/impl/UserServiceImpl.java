@@ -11,10 +11,12 @@ import com.example.librarymanagement.repository.auth.ChangeEmailRequestRepositor
 import com.example.librarymanagement.repository.auth.TokenRepository;
 import com.example.librarymanagement.repository.auth.UserRepository;
 import com.example.librarymanagement.repository.auth.UserSessionRepository;
+import com.example.librarymanagement.service.EmailService;
 import com.example.librarymanagement.service.FileService;
 import com.example.librarymanagement.service.SmsService;
 import com.example.librarymanagement.service.auth.UserService;
 import com.example.librarymanagement.utils.AuthUtils;
+import jakarta.mail.MessagingException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import net.glxn.qrgen.QRCode;
@@ -47,6 +49,7 @@ public class UserServiceImpl implements UserService {
     private final TokenRepository tokenRepository;
     private final UserSessionRepository userSessionRepository;
     private final SmsService smsService;
+    private final EmailService emailService;
     @Value("${application.name}")
     private String applicationName;
     @Value("${application.security.jwt.access-token.expiration}")
@@ -135,12 +138,20 @@ public class UserServiceImpl implements UserService {
                 .expirationTime(expirationTime)
                 .status(ChangeEmailStatus.VALID)
                 .build());
-
+        CompletableFuture.runAsync(() -> revokeAllValidEmailVerificationTokens(authenticatedUser));
         CompletableFuture.runAsync(() -> {
-
+            try {
+                emailService.sendChangeEmailToken(authenticatedUser.getEmail(), tokenFrom.getValue());
+            } catch (MessagingException e) {
+                log.error("Error in Email Service: Messages:{}", e.getMessage());
+            }
         });
         CompletableFuture.runAsync(() -> {
-
+            try {
+                emailService.sendChangeEmailToken(changeEmailRequest.getEmail(), tokenTo.getValue());
+            } catch (MessagingException e) {
+                log.error("Error in Email Service: Messages:{}", e.getMessage());
+            }
         });
     }
 
@@ -203,7 +214,7 @@ public class UserServiceImpl implements UserService {
         authenticatedUser.setPhoneVerified(false);
         authenticatedUser.setPhone(phone);
         userRepository.save(authenticatedUser);
-        smsService.send6DigitCode(phone, otp);
+//        smsService.send6DigitCode(phone, otp);
     }
 
     @Override
@@ -221,5 +232,16 @@ public class UserServiceImpl implements UserService {
                 () -> {
                     throw new VerificationException(TOKEN_NOT_FOUND);
                 });
+    }
+
+    @Override
+    public void revokeAllValidEmailVerificationTokens(User user) {
+        List<Token> validEmailVerificationTokens = tokenRepository.findAllByTokenTypeEqualsAndStatusEqualsAndUserEqualsAndExpirationTimeIsAfter(
+                TokenType.EMAIL_VERIFICATION, TokenStatus.VALID, user, OffsetDateTime.now()
+        );
+        validEmailVerificationTokens.forEach((element)->{
+            element.setStatus(TokenStatus.REVOKED);
+        });
+        tokenRepository.saveAll(validEmailVerificationTokens);
     }
 }

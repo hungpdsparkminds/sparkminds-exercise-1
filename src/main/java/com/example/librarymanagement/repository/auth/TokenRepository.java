@@ -23,6 +23,9 @@ public interface TokenRepository extends JpaRepository<Token, Long> {
             """)
     List<Token> findAllValidTokenByUser(Long userId);
 
+    List<Token> findAllByTokenTypeEqualsAndStatusEqualsAndUserEqualsAndExpirationTimeIsAfter
+            (TokenType type, TokenStatus tokenStatus, User user, OffsetDateTime offsetDateTime);
+
     Optional<Token> findByValueEqualsAndTokenTypeEqualsAndStatusEqualsAndUserEqualsAndExpirationTimeIsAfter
             (String value, TokenType type, TokenStatus tokenStatus, User user, OffsetDateTime offsetDateTime);
 
