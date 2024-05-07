@@ -239,6 +239,9 @@ public class UserServiceImpl implements UserService {
         List<Token> validEmailVerificationTokens = tokenRepository.findAllByTokenTypeEqualsAndStatusEqualsAndUserEqualsAndExpirationTimeIsAfter(
                 TokenType.EMAIL_VERIFICATION, TokenStatus.VALID, user, OffsetDateTime.now()
         );
+        validEmailVerificationTokens.addAll(tokenRepository.findAllByTokenTypeEqualsAndStatusEqualsAndUserEqualsAndExpirationTimeIsAfter(
+                TokenType.EMAIL_VERIFICATION, TokenStatus.VALID, user, OffsetDateTime.now()
+        ));
         validEmailVerificationTokens.forEach((element)->{
             element.setStatus(TokenStatus.REVOKED);
         });

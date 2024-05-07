@@ -15,7 +15,7 @@ import io.swagger.v3.oas.annotations.servers.Server;
                 ),
                 @Server(
                         description = "PROD ENV",
-                        url = "13.228.25.128:8080"
+                        url = "http://ec2-13-228-25-128.ap-southeast-1.compute.amazonaws.com:8080"
                 )
         },
         security = {

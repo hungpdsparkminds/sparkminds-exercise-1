@@ -26,10 +26,11 @@ public class EmailServiceImpl implements EmailService {
     private String baseUrl;
 
     @Override
-    public void sendVerificationEmail(String email, String token) throws MessagingException {
+    public void sendVerificationEmail(String email, String token, String otp) throws MessagingException {
         Map<String, Object> attribute = new HashMap<>();
         attribute.put("baseUrl", baseUrl + "/api/v1/auth/verify-email");
         attribute.put("verificationToken", token);
+        attribute.put("code", otp);
         sendMessageHtml(EmailRequest
                 .builder()
                 .to(email)

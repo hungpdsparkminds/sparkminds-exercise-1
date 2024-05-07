@@ -1,6 +1,7 @@
 package com.example.librarymanagement.model.entity.auth;
 
 import com.example.librarymanagement.model.entity.AbstractAuditEntity;
+import com.example.librarymanagement.model.entity.book.Reserve;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
@@ -89,6 +90,9 @@ public class User extends AbstractAuditEntity implements UserDetails {
             orphanRemoval = true
     )
     private List<UserSession> sessions;
+
+    @OneToMany(mappedBy = "user", orphanRemoval = true)
+    private List<Reserve> reserves;
 
     @Override
     public Collection<? extends GrantedAuthority> getAuthorities() {

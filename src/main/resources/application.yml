@@ -5,7 +5,7 @@ server:
 
 spring:
   datasource:
-    url: jdbc:postgresql://${DATASOURCE_HOST:localhost}:5432/sparkminds-1
+    url: jdbc:postgresql://${DATASOURCE_HOST:13.228.25.128}:5432/sparkminds-1
     username: ${DATASOURCE_USERNAME:hungpd170501}
     password: ${DATASOURCE_PASSWORD:password}
   jpa:
@@ -29,12 +29,19 @@ spring:
           auth: true
           starttls:
             enable: true
+  servlet:
+    multipart:
+      enabled: true
+      max-file-size: 5MB
+      max-request-size: 5MB
+#  liquibase:
+#    enabled: false
 
 mail:
   debug: true
 
 redis:
-  host: ${REDIS_HOST:localhost}
+  host: ${REDIS_HOST:13.228.25.128}
   port: 6379
   timeout: 1800000
 
@@ -45,9 +52,11 @@ amazon:
   s3:
     bucket:
       name: ${AWS_BUCKET_NAME}
+      url: ${AWS_BUCKET_URL}
+
 
 application:
-  host: ${HOST:localhost}
+  host: ${HOST:13.228.25.128}
   name: ${APPLICATION_NAME:sparkminds-1}
   base-url: ${BASE_URL:http://localhost:8080}
   security:

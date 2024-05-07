@@ -1,15 +1,12 @@
 package com.example.librarymanagement.controller.auth;
 
-import com.example.librarymanagement.model.dto.request.auth.ForgotPasswordRequest;
-import com.example.librarymanagement.model.dto.request.auth.LoginRequest;
-import com.example.librarymanagement.model.dto.request.auth.RegisterRequest;
-import com.example.librarymanagement.model.dto.request.auth.ResetPasswordRequest;
+import com.example.librarymanagement.model.dto.request.auth.*;
 import com.example.librarymanagement.model.dto.response.auth.AuthenticationResponse;
+import com.example.librarymanagement.model.entity.auth.TokenType;
 import com.example.librarymanagement.service.auth.AuthenticationService;
 import com.example.librarymanagement.utils.AuthUtils;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Email;
-import jakarta.validation.constraints.NotEmpty;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpHeaders;
@@ -34,7 +31,7 @@ public class AuthController {
     }
 
     @PostMapping("/register")
-    public ResponseEntity<AuthenticationResponse> register(
+    public ResponseEntity<Void> register(
             @RequestBody @Valid RegisterRequest registerRequest) {
         authenticationService.register(registerRequest);
         return ResponseEntity.noContent().build();
@@ -64,13 +61,19 @@ public class AuthController {
 
     @GetMapping("/verify-email")
     public ResponseEntity<Void> verifyEmail(@RequestParam String token) {
-        authenticationService.verifyEmailToken(token);
+        authenticationService.verifyEmailToken(token, TokenType.EMAIL_VERIFICATION);
+        return ResponseEntity.noContent().build();
+    }
+
+    @PostMapping("/verify-email")
+    public ResponseEntity<Void> verifyEmailOtp(@RequestBody @Valid VerifyEmailByOtpRequest verifyEmailByOtpRequest) {
+        authenticationService.verifyEmailToken(verifyEmailByOtpRequest, TokenType.EMAIL_VERIFICATION_OTP);
         return ResponseEntity.noContent().build();
     }
 
     @PostMapping("/resend-verification-email")
-    public ResponseEntity<Void> resendVerificationEmailByLink(@RequestParam @Email @Valid String email) {
-        authenticationService.resendVerifyEmailByLink(email);
+    public ResponseEntity<Void> resendVerificationEmail(@RequestParam @Email @Valid String email) {
+        authenticationService.resendVerifyEmail(email);
         return ResponseEntity.noContent().build();
     }
 

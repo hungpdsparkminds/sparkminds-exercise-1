@@ -18,6 +18,10 @@ public final class Constants {
         public static final String TOKEN_NOT_FOUND = "TOKEN_NOT_FOUND";
         public static final String VERIFICATION_QR_NOT_FOUND = "VERIFICATION_QR_NOT_FOUND";
         public static final String ROLE_NOT_FOUND = "ROLE_NOT_FOUND";
+        public static final String BOOK_CATEGORY_NOT_FOUND = "BOOK_CATEGORY_NOT_FOUND";
+        public static final String BOOK_PUBLISHER_NOT_FOUND = "BOOK_PUBLISHER_NOT_FOUND";
+        public static final String BOOK_AUTHOR_NOT_FOUND = "BOOK_AUTHOR_NOT_FOUND";
+        public static final String BOOK_NOT_FOUND = "BOOK_NOT_FOUND";
         public static final String NEED_CHANGE_PASSWORD = "NEED_CHANGE_PASSWORD";
         public static final String AWS_S3_UPLOAD_OBJECT_ERROR = "AWS_S3_UPLOAD_OBJECT_ERROR";
         public static final String UNAUTHENTICATED = "ACTION FAILED, PLEASE LOGIN";

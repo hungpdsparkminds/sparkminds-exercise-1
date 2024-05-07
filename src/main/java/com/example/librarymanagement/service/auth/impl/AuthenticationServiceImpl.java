@@ -1,10 +1,7 @@
 package com.example.librarymanagement.service.auth.impl;
 
 import com.example.librarymanagement.config.security.JwtService;
-import com.example.librarymanagement.model.dto.request.auth.ForgotPasswordRequest;
-import com.example.librarymanagement.model.dto.request.auth.LoginRequest;
-import com.example.librarymanagement.model.dto.request.auth.RegisterRequest;
-import com.example.librarymanagement.model.dto.request.auth.ResetPasswordRequest;
+import com.example.librarymanagement.model.dto.request.auth.*;
 import com.example.librarymanagement.model.dto.response.auth.AuthenticationResponse;
 import com.example.librarymanagement.model.entity.auth.*;
 import com.example.librarymanagement.model.exception.AccessDeniedException;
@@ -34,9 +31,11 @@ import org.springframework.transaction.annotation.Transactional;
 import org.thymeleaf.util.StringUtils;
 import redis.clients.jedis.JedisPooled;
 
+import java.security.SecureRandom;
 import java.time.Duration;
 import java.time.OffsetDateTime;
 import java.util.HashMap;
+import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 
@@ -84,25 +83,7 @@ public class AuthenticationServiceImpl implements AuthenticationService {
                 .passwordHash(passwordEncoder.encode(registerRequest.getPassword()))
                 .status(UserStatus.PENDING)
                 .build());
-        var token = tokenRepository.save(Token
-                .builder()
-                .user(user)
-                .tokenType(TokenType.EMAIL_VERIFICATION)
-                .expirationTime(OffsetDateTime.now().plusSeconds(jwtExpiration / 1000))
-                .status(TokenStatus.VALID)
-                .value(jwtService.generateToken(new HashMap<>(), user))
-                .build());
-        sendVerifyEmail(user, token);
-    }
-
-    private void sendVerifyEmail(User user, Token token) {
-        CompletableFuture.runAsync(() -> {
-            try {
-                emailService.sendVerificationEmail(user.getEmail(), token.getValue());
-            } catch (MessagingException e) {
-                log.error("Error in Email Service: Messages:{}", e.getMessage());
-            }
-        });
+        sendVerificationEmail(user);
     }
 
     @Transactional
@@ -160,12 +141,16 @@ public class AuthenticationServiceImpl implements AuthenticationService {
 
     @Override
     @Transactional
-    public void resendVerifyEmailByLink(String email) {
+    public void resendVerifyEmail(String email) {
         var user = findUserByEmail(email);
         if (user.isEmailVerified()) {
             return;
         }
         userService.revokeAllValidEmailVerificationTokens(user);
+        sendVerificationEmail(user);
+    }
+
+    private void sendVerificationEmail(User user) {
         var token = tokenRepository.save(Token
                 .builder()
                 .user(user)
@@ -174,7 +159,21 @@ public class AuthenticationServiceImpl implements AuthenticationService {
                 .status(TokenStatus.VALID)
                 .value(jwtService.generateToken(new HashMap<>(), user))
                 .build());
-        sendVerifyEmail(user, token);
+        var otp = tokenRepository.save(Token
+                .builder()
+                .user(user)
+                .tokenType(TokenType.EMAIL_VERIFICATION_OTP)
+                .expirationTime(OffsetDateTime.now().plusSeconds(jwtExpiration / 1000))
+                .status(TokenStatus.VALID)
+                .value(String.format("%06d", (new SecureRandom()).nextInt(999999)))
+                .build());
+        CompletableFuture.runAsync(() -> {
+            try {
+                emailService.sendVerificationEmail(user.getEmail(), token.getValue(), otp.getValue());
+            } catch (MessagingException e) {
+                log.error("Error in Email Service: Messages:{}", e.getMessage());
+            }
+        });
     }
 
     @Override
@@ -197,12 +196,26 @@ public class AuthenticationServiceImpl implements AuthenticationService {
     }
 
     @Transactional
-    public void verifyEmailToken(String token) {
+    public void verifyEmailToken(String token, TokenType type) {
         var user = getUserFromToken(token);
+        verifyEmailToken(token, type, user);
+    }
+
+    private void verifyEmailToken(String token, TokenType type, User user) {
         tokenRepository.findByValueEqualsAndTokenTypeEqualsAndStatusEqualsAndUserEqualsAndExpirationTimeIsAfter(
-                        token, TokenType.EMAIL_VERIFICATION, TokenStatus.VALID, user, OffsetDateTime.now())
+                        token, type, TokenStatus.VALID, user, OffsetDateTime.now())
                 .ifPresentOrElse(
                         element -> {
+                            CompletableFuture.runAsync(() -> {
+                                List<Token> validVerificationTokens = tokenRepository.findAllByTokenTypeEqualsAndStatusEqualsAndUserEqualsAndExpirationTimeIsAfter(
+                                        TokenType.EMAIL_VERIFICATION, TokenStatus.VALID, user, OffsetDateTime.now()
+                                );
+                                validVerificationTokens.addAll(tokenRepository.findAllByTokenTypeEqualsAndStatusEqualsAndUserEqualsAndExpirationTimeIsAfter(
+                                        TokenType.EMAIL_VERIFICATION_OTP, TokenStatus.VALID, user, OffsetDateTime.now()
+                                ));
+                                validVerificationTokens.forEach(t -> t.setStatus(TokenStatus.REVOKED));
+                                tokenRepository.saveAll(validVerificationTokens);
+                            });
                             element.setStatus(TokenStatus.REVOKED);
                             tokenRepository.save(element);
                         },
@@ -213,6 +226,17 @@ public class AuthenticationServiceImpl implements AuthenticationService {
             user.setStatus(UserStatus.ACTIVE);
         }
         markEmailVerified(user);
+    }
+
+    @Override
+    @Transactional
+    public void verifyEmailToken(VerifyEmailByOtpRequest verifyEmailByOtpRequest, TokenType type) {
+        userRepository.getUserByEmailEquals(verifyEmailByOtpRequest.getEmail())
+                .ifPresentOrElse(u -> {
+                    verifyEmailToken(verifyEmailByOtpRequest.getOtp(), TokenType.EMAIL_VERIFICATION_OTP, u);
+                }, () -> {
+                    throw new NotFoundException(USER_NOT_FOUND);
+                });
     }
 
     private boolean hasTooManyLoginAttempts(String email) {
